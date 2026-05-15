@@ -50,6 +50,25 @@ Built as a learning project to practice the Medallion architecture (raw → stag
 
 **Host country performance:** Hosts won their home WC 5 times out of 20 (25%). Hosts also average ~9.8 goals scored vs ~5.4 conceded across all WCs they hosted.
 
+## Dashboard
+
+A Streamlit dashboard visualizes all four marts with a different chart type per section:
+
+| Section | Chart type | Mart |
+|---------|-----------|------|
+| KPIs (tournaments, matches, goals, teams) | Metric tiles | All |
+| Top 10 goal scorers | Lollipop chart | `mart_top_scorers` |
+| Distribution of titles | Donut chart | `mart_world_cup_winners` |
+| Attack vs defense (per team) | Scatter plot (sized by matches) | `mart_team_performance` |
+| Host performance per WC | Grouped bar (scored vs conceded) | `mart_host_performance` |
+| Winners timeline | Time-series bar | `mart_world_cup_winners` |
+| Reference tables | Tabbed dataframes | All |
+
+Run locally with:
+```bash
+streamlit run streamlit/app.py
+```
+
 ## Tech stack
 
 - **Python** — CSV ingestion (pandas + SQLAlchemy)
@@ -151,7 +170,8 @@ world-cup-etl-pipeline/
 - [ ] Extend canonicalization to Soviet Union → Russia, Czechoslovakia → Czech Republic, Yugoslavia → Serbia
 - [ ] Handle co-hosted tournaments (e.g. Korea/Japan 2002) in `mart_host_performance`
 - [ ] Add dbt tests (`not_null`, `unique`, `relationships`) on key columns
-- [ ] Add a Streamlit dashboard to visualize the marts
+- [x] ~~Add a Streamlit dashboard to visualize the marts~~ (done — see `streamlit/app.py`)
+- [ ] Add dashboard screenshots to this README
 
 ## Notes / decisions
 
