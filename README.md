@@ -206,6 +206,8 @@ The Streamlit dashboard becomes available at `http://localhost:8501` once dbt ha
 
 A GitHub Actions workflow at `.github/workflows/data_pipeline.yml` runs automatically on every push to `main` (and on manual trigger from the Actions tab).
 
+![Pipeline run on GitHub Actions](./Images/pipeline.PNG)
+
 ### What it does
 
 | Job | What it validates |
