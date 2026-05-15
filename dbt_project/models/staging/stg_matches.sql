@@ -10,19 +10,13 @@ select
     m.home_team_id,
     m.home_team_name,
     m.home_team_code,
-    -- Map historical team names to their modern equivalents.
-    -- Original home_team_name is preserved above for traceability.
-    case
-        when m.home_team_name in ('West Germany', 'East Germany') then 'Germany'
-        else m.home_team_name
-    end as home_team_canonical,
+    -- Canonicalized via macros/canonicalize_team_name.sql. Original
+    -- home_team_name is preserved above for traceability.
+    {{ canonicalize_team_name('m.home_team_name') }} as home_team_canonical,
     m.away_team_id,
     m.away_team_name,
     m.away_team_code,
-    case
-        when m.away_team_name in ('West Germany', 'East Germany') then 'Germany'
-        else m.away_team_name
-    end as away_team_canonical,
+    {{ canonicalize_team_name('m.away_team_name') }} as away_team_canonical,
     m.home_team_score,
     m.away_team_score,
     m.result,
