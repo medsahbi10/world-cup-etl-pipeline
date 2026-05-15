@@ -164,28 +164,33 @@ with left:
         color="metric",
         barmode="group",
         color_discrete_map={"Scored": "#22c55e", "Conceded": "#ef4444"},
-        labels={"label": None, "goals": "Goals"},
+        labels={"label": "Tournament", "goals": "Goals"},
     )
     fig.update_layout(height=520, margin=dict(l=0, r=0, t=10, b=80), xaxis_tickangle=-60, legend_title=None)
     st.plotly_chart(fig, use_container_width=True)
 
 with right:
-    st.subheader("📅 Winners Timeline")
+    st.subheader("🌟 Winners Through Time")
+    st.caption("Each star = one World Cup won. Countries ordered by total titles.")
     winners = data["winners"].copy()
-    winners["count"] = 1
-    fig = px.bar(
+    # Sort y-axis by total titles (most-titled country at the top).
+    title_order = winners["winner"].value_counts().index.tolist()[::-1]
+    winners["winner"] = pd.Categorical(winners["winner"], categories=title_order, ordered=True)
+    fig = px.scatter(
         winners,
         x="year",
-        y="count",
-        color="winner",
-        text="winner",
-        labels={"year": "Year", "count": ""},
+        y="winner",
+        hover_data={"host_country": True, "count_teams": True, "year": True, "winner": False},
+        labels={"winner": "", "year": "Year"},
     )
-    fig.update_traces(textposition="outside", textangle=-90)
+    fig.update_traces(
+        marker=dict(symbol="star", size=22, color="gold", line=dict(width=1.5, color="#b45309")),
+    )
     fig.update_layout(
         height=520, margin=dict(l=0, r=0, t=10, b=0),
-        showlegend=False,
-        yaxis=dict(showticklabels=False, showgrid=False, range=[0, 1.6]),
+        plot_bgcolor="white",
+        xaxis=dict(showgrid=True, gridcolor="#e2e8f0", dtick=8),
+        yaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
     )
     st.plotly_chart(fig, use_container_width=True)
 
