@@ -21,3 +21,4 @@ dbt_project/.user.yml
 # OS
 .DS_Store
 Thumbs.db
+*.lnk
