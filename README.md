@@ -15,11 +15,13 @@ It answers real business questions: *Who are the all-time top goal scorers? Whic
 4. [🐘 PostgreSQL Setup](#3--postgresql-setup)
 5. [🧠 DBT Setup](#4--dbt-setup)
 6. [📊 Streamlit Setup](#5--streamlit-setup)
-7. [🧮 Models](#6--models)
-8. [📈 Sample Insights](#7--sample-insights)
-9. [🛠️ Usage](#8-️-usage)
-10. [🗺️ Roadmap](#9-️-roadmap)
-11. [📝 Design Decisions](#10--design-decisions)
+7. [🐳 Orchestration: Dockerized Architecture](#6--orchestration-dockerized-architecture)
+8. [🚀 Deployment: GitHub Actions CI/CD](#7--deployment-github-actions-cicd)
+9. [🧮 Models](#8--models)
+10. [📈 Sample Insights](#9--sample-insights)
+11. [🛠️ Usage](#10-️-usage)
+12. [🗺️ Roadmap](#11-️-roadmap)
+13. [📝 Design Decisions](#12--design-decisions)
 
 ## 🗂️ Project Overview
 
@@ -169,7 +171,66 @@ streamlit run streamlit/app.py
 | Winners through time | Star scatter on year × country grid | `mart_world_cup_winners` |
 | Reference tables | Tabbed dataframes | All |
 
-## 6. 🧮 Models
+## 6. 🐳 Orchestration: Dockerized Architecture
+
+All four components also run inside **Docker containers** for easy setup and portability. The `docker-compose.yml` orchestrates them:
+
+```
+docker/
+├── etl/Dockerfile          # Python ETL container
+├── dbt/Dockerfile          # dbt-postgres container
+└── streamlit/Dockerfile    # Streamlit dashboard container
+docker-compose.yml          # Postgres + ETL + dbt + Streamlit
+```
+
+### Services
+
+- **`postgres_db`** — `postgres:14` image; runs `scripts/pg_init.sql` on first boot to create the `dev_user` role and the `wc_raw` schema.
+- **`etl_app`** — Python 3.10 + project requirements. Waits for `postgres_db` to be healthy, then runs `python3 etl/load.py`.
+- **`dbt`** — Python 3.10 + `dbt-core` + `dbt-postgres`. Waits for Postgres, then runs `dbt build`.
+- **`streamlit_app`** — Python 3.10 + Streamlit + Plotly. Exposes the dashboard on `http://localhost:8501`.
+
+### Run with Docker
+
+```bash
+# Build images and start all services (detached)
+docker-compose up --build -d
+
+# Stop all services and remove volumes (clean slate)
+docker-compose down -v
+```
+
+The Streamlit dashboard becomes available at `http://localhost:8501` once dbt has finished building the marts.
+
+## 7. 🚀 Deployment: GitHub Actions CI/CD
+
+A GitHub Actions workflow at `.github/workflows/data_pipeline.yml` runs automatically on every push to `main` (and on manual trigger from the Actions tab).
+
+### What it does
+
+| Job | What it validates |
+|-----|-------------------|
+| `test-etl-pipeline` | Spins up a Postgres 14 service, runs `etl/load.py`, verifies it succeeds |
+| `test-dbt-pipeline` | After the ETL passes, runs `dbt debug`, `dbt run`, `dbt test` against the same Postgres |
+| `build-and-push-etl-docker` | Builds the ETL Docker image and pushes it to Docker Hub |
+| `build-and-push-dbt-docker` | Builds the dbt Docker image and pushes it to Docker Hub |
+| `build-and-push-streamlit-docker` | Builds the Streamlit Docker image and pushes it to Docker Hub |
+
+### Required GitHub secrets
+
+To make the workflow run, add the following under **Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|--------|-------------|
+| `DATABASE_USER` | Postgres username (e.g. `dev_user`) |
+| `DATABASE_PASSWORD` | Postgres password |
+| `DATABASE_NAME` | Postgres database name (e.g. `superstore`) |
+| `DOCKERHUB_USERNAME` | Your Docker Hub username |
+| `DOCKERHUB_TOKEN` | A Docker Hub Personal Access Token (create at hub.docker.com → Account Settings → Security) |
+
+Once secrets are in place, every push to `main` triggers the full pipeline (test → build → publish). You'll see green ✅ or red ❌ next to each commit in the GitHub UI.
+
+## 8. 🧮 Models
 
 ### Staging (cleanup layer — `wc_silver`)
 
@@ -194,7 +255,7 @@ streamlit run streamlit/app.py
 | `generate_schema_name(custom_schema)` | Uses custom schema names verbatim (overrides default dbt prefixing) |
 | `canonicalize_team_name(col)` | Maps West/East Germany → Germany; ready to extend (Soviet Union → Russia, etc.) |
 
-## 7. 📈 Sample Insights
+## 9. 📈 Sample Insights
 
 ### 🥇 Top Scorers + 🏆 Title Distribution
 
@@ -221,9 +282,24 @@ streamlit run streamlit/app.py
 - Host nations average **9.8 goals scored vs 5.4 conceded** — a real home advantage.
 - The "Winners Through Time" star grid shows Brazil's dominance, Italy's golden years (1934–1938), and Argentina's recent revival (2022).
 
-## 8. 🛠️ Usage
+## 10. 🛠️ Usage
 
-### Full setup from scratch
+### Option A — Run everything with Docker (recommended)
+
+```bash
+git clone https://github.com/medsahbi10/world-cup-etl-pipeline.git
+cd world-cup-etl-pipeline
+copy .env.example .env             # then edit .env with your chosen credentials
+
+docker-compose up --build -d       # builds + starts postgres, etl, dbt, streamlit
+
+# When you're done:
+docker-compose down -v
+```
+
+Dashboard: `http://localhost:8501`.
+
+### Option B — Run locally without Docker
 
 ```bash
 # 1. Clone
@@ -232,11 +308,11 @@ cd world-cup-etl-pipeline
 
 # 2. Python venv + dependencies
 python -m venv .venv
-.venv\Scripts\activate          # Windows  (use 'source .venv/bin/activate' on macOS/Linux)
+.venv\Scripts\activate             # Windows  (use 'source .venv/bin/activate' on macOS/Linux)
 pip install -r requirements.txt
 
 # 3. Create .env with your Postgres credentials
-copy .env.example .env          # then edit .env with your real password
+copy .env.example .env             # then edit .env with your real password
 
 # 4. Ensure the wc_raw schema exists (one-time)
 psql -U postgres -c "CREATE SCHEMA IF NOT EXISTS wc_raw;"
@@ -253,17 +329,18 @@ streamlit run streamlit/app.py
 
 The dashboard opens at `http://localhost:8501`.
 
-## 9. 🗺️ Roadmap
+## 11. 🗺️ Roadmap
 
 - [ ] Build `stg_goals` and `stg_players` to canonicalize the goals table (currently `mart_top_scorers` still shows "West Germany" in the `country` column)
 - [ ] Clean up `given_name = 'not applicable'` for single-name Brazilian players in staging
 - [ ] Extend canonicalization to Soviet Union → Russia, Czechoslovakia → Czech Republic, Yugoslavia → Serbia
 - [ ] Handle co-hosted tournaments (e.g. Korea/Japan 2002) in `mart_host_performance`
 - [ ] Add dbt tests (`not_null`, `unique`, `relationships`) on key columns
-- [ ] CI/CD with GitHub Actions (dbt build + test on push)
+- [x] ~~CI/CD with GitHub Actions~~ (done — see `.github/workflows/data_pipeline.yml`)
+- [x] ~~Docker / docker-compose setup~~ (done — see `docker/` and `docker-compose.yml`)
 - [ ] Optional women's World Cup mode (toggle the men's-only filter)
 
-## 10. 📝 Design Decisions
+## 12. 📝 Design Decisions
 
 - **Why filter to men's only?** Keeps scope tight for v1. The women's WC dataset is the same shape, so adding it later is a one-line filter change.
 - **Why combine West Germany and Germany?** For "best team ever" analytics, treating the German football team as one continuous entity is more useful than splitting by political era. The original names are preserved as `*_original` columns for traceability.
