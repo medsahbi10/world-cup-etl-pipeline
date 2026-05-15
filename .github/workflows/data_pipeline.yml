@@ -27,8 +27,11 @@ jobs:
                     POSTGRES_DB: ${{ secrets.DATABASE_NAME }}
                 ports:
                     - 5432:5432
+                # NOTE: services.X.options does NOT have access to ${{ secrets }}
+                # (it's evaluated at workflow-startup time). Use bare pg_isready —
+                # it returns 0 as soon as Postgres is accepting TCP connections.
                 options: >-
-                    --health-cmd "pg_isready -U ${{ secrets.DATABASE_USER }}"
+                    --health-cmd "pg_isready"
                     --health-interval 5s
                     --health-timeout 5s
                     --health-retries 10
@@ -81,8 +84,11 @@ jobs:
                     POSTGRES_DB: ${{ secrets.DATABASE_NAME }}
                 ports:
                     - 5432:5432
+                # NOTE: services.X.options does NOT have access to ${{ secrets }}
+                # (it's evaluated at workflow-startup time). Use bare pg_isready —
+                # it returns 0 as soon as Postgres is accepting TCP connections.
                 options: >-
-                    --health-cmd "pg_isready -U ${{ secrets.DATABASE_USER }}"
+                    --health-cmd "pg_isready"
                     --health-interval 5s
                     --health-timeout 5s
                     --health-retries 10
