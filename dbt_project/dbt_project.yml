@@ -1,0 +1,33 @@
+# The project's main config file. Tells dbt:
+#   - what this project is called
+#   - which "profile" (connection) to use from profiles.yml
+#   - where to find different file types
+#   - how to materialize models in each folder
+name: 'world_cup'
+version: '1.0.0'
+config-version: 2
+
+profile: 'world_cup'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analyses"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# How dbt builds models in each folder.
+#   staging models -> wc_silver schema, materialized as views (cheap, always fresh)
+#   marts models   -> wc_gold schema, materialized as tables (fast for dashboards)
+models:
+  world_cup:
+    staging:
+      +schema: wc_silver
+      +materialized: view
+    marts:
+      +schema: wc_gold
+      +materialized: table

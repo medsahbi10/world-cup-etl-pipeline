@@ -1,0 +1,15 @@
+# Connection config for dbt. Each "profile" can have multiple outputs (dev, prod, etc.).
+# Values come from environment variables so we don't commit credentials.
+world_cup:
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DATABASE_HOST') }}"
+      port: "{{ env_var('DATABASE_PORT') | int }}"
+      user: "{{ env_var('DATABASE_USER') }}"
+      password: "{{ env_var('DATABASE_PASSWORD') }}"
+      dbname: "{{ env_var('DATABASE_NAME') }}"
+      # Default target schema. Custom +schema configs in dbt_project.yml override this.
+      schema: wc_silver
+      threads: 4
+  target: dev

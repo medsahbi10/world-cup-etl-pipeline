@@ -1,0 +1,18 @@
+# Declares the raw tables we'll read from in `{{ source('wc_raw', 'matches') }}` calls.
+# dbt doesn't create these tables — our Python ETL loads them. We just point at them.
+version: 2
+
+sources:
+  - name: wc_raw
+    database: superstore
+    schema: wc_raw
+    description: "Raw World Cup CSVs loaded as-is by etl/load.py"
+    tables:
+      - name: tournaments
+        description: "One row per World Cup tournament (men's + women's)."
+      - name: matches
+        description: "One row per match across all World Cups."
+      - name: players
+        description: "One row per player ever to appear in a World Cup."
+      - name: goals
+        description: "One row per goal scored in any World Cup match."
