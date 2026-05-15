@@ -34,7 +34,21 @@ Built as a learning project to practice the Medallion architecture (raw → stag
 | France  |      73 |  41 |  9 | 23 | 136 |  85 |  +51 |
 | Italy   |      83 |  46 | 17 | 20 | 128 |  77 |  +51 |
 
-(Germany combines historical West Germany + East Germany via a canonicalization step in the staging layer.)
+(Germany combines historical West Germany + East Germany via a `canonicalize_team_name` macro applied in staging.)
+
+**Top scorers (all-time men's World Cup):**
+
+| Rank | Player              | Country     | Goals |
+|-----:|---------------------|-------------|------:|
+| 1 | Miroslav Klose | Germany | 16 |
+| 2 | Ronaldo (Brazilian) | Brazil | 15 |
+| 3 | Gerd Müller | West Germany | 14 |
+| 4 | Just Fontaine | France | 13 |
+| 5 | Lionel Messi | Argentina | 13 |
+| 6 | Pelé | Brazil | 12 |
+| 7 | Kylian Mbappé | France | 12 |
+
+**Host country performance:** Hosts won their home WC 5 times out of 20 (25%). Hosts also average ~9.8 goals scored vs ~5.4 conceded across all WCs they hosted.
 
 ## Tech stack
 
@@ -106,22 +120,38 @@ world-cup-etl-pipeline/
    dbt run --profiles-dir .
    ```
 
-## Models so far
+## Models
 
-| Model | Layer | What it does |
-|-------|-------|--------------|
-| `stg_tournaments` | staging | Filters tournaments to men's WCs only (22 rows) |
-| `stg_matches` | staging | Filters matches to men's WCs via JOIN; adds `team_canonical` columns merging historical names like West Germany → Germany (964 rows) |
-| `mart_team_performance` | marts | Aggregates per-team stats across all WCs: matches played, W/D/L, goals for/against, goal difference (83 teams) |
+### Staging (cleanup)
+
+| Model | Rows | What it does |
+|-------|-----:|--------------|
+| `stg_tournaments` | 22 | Filters tournaments to men's WCs; canonicalizes `host_country` and `winner` via macro |
+| `stg_matches` | 964 | Filters matches to men's WCs via JOIN; canonicalizes home/away team names |
+
+### Marts (analytics)
+
+| Model | Rows | Answers |
+|-------|-----:|---------|
+| `mart_world_cup_winners` | 22 | Who won each men's World Cup |
+| `mart_host_performance` | 21 | How hosts performed at their home tournament |
+| `mart_team_performance` | 83 | Per-team all-time stats: W/D/L, goals for/against, goal difference |
+| `mart_top_scorers` | 20 | Top scorers in men's WC history (excludes own goals) |
+
+### Macros
+
+| Macro | Purpose |
+|-------|---------|
+| `canonicalize_team_name(col)` | Maps historical names (West/East Germany) to modern continuous-history equivalents. Used by both staging models. |
 
 ## Roadmap
 
-- [ ] `mart_top_scorers` — best players by goals scored (uses `goals.csv` + JOIN to `stg_matches`)
-- [ ] `mart_world_cup_winners` — winners and runners-up of each WC
-- [ ] `mart_host_performance` — do hosts perform better?
+- [ ] Build `stg_goals` and `stg_players` to canonicalize the goals table (currently `mart_top_scorers` still shows "West Germany" in the `country` column)
+- [ ] Clean up `given_name = 'not applicable'` for single-name Brazilian players in staging
 - [ ] Extend canonicalization to Soviet Union → Russia, Czechoslovakia → Czech Republic, Yugoslavia → Serbia
-- [ ] Add dbt tests (`not_null`, `unique`) on key columns
-- [ ] Add a Streamlit dashboard to visualize results
+- [ ] Handle co-hosted tournaments (e.g. Korea/Japan 2002) in `mart_host_performance`
+- [ ] Add dbt tests (`not_null`, `unique`, `relationships`) on key columns
+- [ ] Add a Streamlit dashboard to visualize the marts
 
 ## Notes / decisions
 
