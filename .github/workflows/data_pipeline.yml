@@ -1,7 +1,7 @@
 name: World Cup ETL Data Pipeline
 
 on:
-    workflow_dispatch:           # allow manual trigger from the Actions tab
+    workflow_dispatch:            # allow manual trigger from the Actions tab
     push:
         branches:
             - main
@@ -14,35 +14,42 @@ jobs:
     test-etl-pipeline:
         name: Extract and Load Raw Data to Postgres
         runs-on: ubuntu-latest
+
+        # GitHub Actions starts this Postgres service container before any step
+        # runs, with a proper TCP health check. Much more reliable than manually
+        # `docker run`-ing and polling.
+        services:
+            postgres:
+                image: postgres:14
+                env:
+                    POSTGRES_USER: ${{ secrets.DATABASE_USER }}
+                    POSTGRES_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+                    POSTGRES_DB: ${{ secrets.DATABASE_NAME }}
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U ${{ secrets.DATABASE_USER }}"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 10
+
         env:
             DATABASE_USER: ${{ secrets.DATABASE_USER }}
             DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
             DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+            DATABASE_HOST: localhost
+            DATABASE_PORT: 5432
+            PORT: 5432
 
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Start PostgreSQL container
+            - name: Apply pg_init.sql (creates wc_raw schema)
+              env:
+                PGPASSWORD: ${{ secrets.DATABASE_PASSWORD }}
               run: |
-                docker run -d \
-                  --name postgres_test \
-                  -e POSTGRES_USER=${{ secrets.DATABASE_USER }} \
-                  -e POSTGRES_PASSWORD=${{ secrets.DATABASE_PASSWORD }} \
-                  -e POSTGRES_DB=${{ secrets.DATABASE_NAME }} \
-                  -v ${{ github.workspace }}/scripts/pg_init.sql:/docker-entrypoint-initdb.d/pg_init.sql:ro \
-                  -p 5432:5432 \
-                  postgres:14
-
-                echo "Waiting for PostgreSQL to be ready..."
-                for i in {1..15}; do
-                    if docker exec postgres_test pg_isready -U ${{ secrets.DATABASE_USER }} > /dev/null 2>&1; then
-                        echo "✅ PostgreSQL is ready!"
-                        break
-                    fi
-                    echo "⏳ Waiting for database ($i/15)..."
-                    sleep 5
-                done
+                psql -h localhost -U $DATABASE_USER -d $DATABASE_NAME -f scripts/pg_init.sql
 
             - name: Set up Python 3.10
               uses: actions/setup-python@v5
@@ -55,13 +62,6 @@ jobs:
                 pip install -r requirements.txt
 
             - name: Run ETL
-              env:
-                DATABASE_NAME: ${{ env.DATABASE_NAME }}
-                DATABASE_USER: ${{ env.DATABASE_USER }}
-                DATABASE_PASSWORD: ${{ env.DATABASE_PASSWORD }}
-                DATABASE_HOST: localhost
-                DATABASE_PORT: 5432
-                PORT: 5432
               run: |
                 echo '🚀 Starting ETL process...'
                 python3 etl/load.py
@@ -71,37 +71,39 @@ jobs:
         name: Run DBT Models and Tests
         runs-on: ubuntu-latest
         needs: test-etl-pipeline
+
+        services:
+            postgres:
+                image: postgres:14
+                env:
+                    POSTGRES_USER: ${{ secrets.DATABASE_USER }}
+                    POSTGRES_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+                    POSTGRES_DB: ${{ secrets.DATABASE_NAME }}
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U ${{ secrets.DATABASE_USER }}"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 10
+
         env:
             DATABASE_USER: ${{ secrets.DATABASE_USER }}
             DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
             DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
             DATABASE_HOST: localhost
             DATABASE_PORT: 5432
+            PORT: 5432
 
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Start PostgreSQL container and re-run ETL
+            - name: Apply pg_init.sql (creates wc_raw schema)
+              env:
+                PGPASSWORD: ${{ secrets.DATABASE_PASSWORD }}
               run: |
-                docker run -d \
-                  --name postgres_test \
-                  -e POSTGRES_USER=${{ secrets.DATABASE_USER }} \
-                  -e POSTGRES_PASSWORD=${{ secrets.DATABASE_PASSWORD }} \
-                  -e POSTGRES_DB=${{ secrets.DATABASE_NAME }} \
-                  -v ${{ github.workspace }}/scripts/pg_init.sql:/docker-entrypoint-initdb.d/pg_init.sql:ro \
-                  -p 5432:5432 \
-                  postgres:14
-
-                echo "Waiting for PostgreSQL to be ready..."
-                for i in {1..15}; do
-                    if docker exec postgres_test pg_isready -U ${{ secrets.DATABASE_USER }} > /dev/null 2>&1; then
-                        echo "✅ PostgreSQL is ready!"
-                        break
-                    fi
-                    echo "⏳ Waiting for database ($i/15)..."
-                    sleep 5
-                done
+                psql -h localhost -U $DATABASE_USER -d $DATABASE_NAME -f scripts/pg_init.sql
 
             - name: Set up Python 3.10
               uses: actions/setup-python@v5
@@ -114,10 +116,6 @@ jobs:
                 pip install -r requirements.txt
 
             - name: Re-run ETL so dbt has data to transform
-              env:
-                DATABASE_HOST: localhost
-                DATABASE_PORT: 5432
-                PORT: 5432
               run: |
                 python3 etl/load.py
 
