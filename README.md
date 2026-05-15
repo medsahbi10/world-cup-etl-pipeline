@@ -6,8 +6,6 @@ This project implements an **end-to-end data analytics pipeline** for the *FIFA 
 
 It answers real business questions: *Who are the all-time top goal scorers? Which countries dominate? Do host nations perform better at home?*
 
-> Built entirely **without Docker** — every component runs as a regular user-space process. Reproducible on a machine with no admin rights.
-
 ## 📚 Table of Contents
 1. [🗂️ Project Overview](#️-project-overview)
 2. [🏗️ Data Flow Architecture](#1-️-data-flow-architecture)
@@ -42,31 +40,7 @@ To design and build a fully open-source, reproducible analytics pipeline that:
 
 ## 1. 🏗️ Data Flow Architecture
 
-```
-            jfjelstul/worldcup CSVs (4 of 27 used: tournaments, matches, players, goals)
-                          │
-                          │  Python ETL (etl/load.py)  —  pandas + SQLAlchemy
-                          ▼
-            ┌──────────────────────────────────────────┐
-            │  PostgreSQL: wc_raw schema                │  ← Bronze (raw, as-is)
-            └──────────────────────────────────────────┘
-                          │
-                          │  dbt staging models (Jinja + SQL)
-                          ▼
-            ┌──────────────────────────────────────────┐
-            │  PostgreSQL: wc_silver schema             │  ← Silver (cleaned, men's WCs only)
-            └──────────────────────────────────────────┘
-                          │
-                          │  dbt mart models (Jinja + SQL)
-                          ▼
-            ┌──────────────────────────────────────────┐
-            │  PostgreSQL: wc_gold schema               │  ← Gold (analytics-ready)
-            └──────────────────────────────────────────┘
-                          │
-                          │  pandas + Plotly
-                          ▼
-                  Streamlit dashboard
-```
+![High Level Architecture](./Images/high-level-architecture.png)
 
 | Layer | Description | Tools / Tasks |
 |-------|-------------|---------------|
@@ -100,7 +74,7 @@ DATABASE_PORT=5432
 
 ## 3. 🐘 PostgreSQL Setup
 
-Postgres acts as the central warehouse. Instead of running it in Docker, this project uses the EnterpriseDB **portable binaries** distribution — a zip file that runs without an installer and without admin rights.
+Postgres acts as the central warehouse. The Docker setup (section 6) runs `postgres:14` as a service container. For local development without Docker, the project also works with EnterpriseDB **portable binaries** — a zip distribution that runs without an installer and without admin rights.
 
 ```bash
 # Initialize a data directory (one-time)
@@ -346,7 +320,6 @@ The dashboard opens at `http://localhost:8501`.
 
 - **Why filter to men's only?** Keeps scope tight for v1. The women's WC dataset is the same shape, so adding it later is a one-line filter change.
 - **Why combine West Germany and Germany?** For "best team ever" analytics, treating the German football team as one continuous entity is more useful than splitting by political era. The original names are preserved as `*_original` columns for traceability.
-- **Why no Docker?** This project was built on a machine without Docker access (locked-down corporate laptop). The full Python + Postgres + dbt + Streamlit stack works fine as user-space processes — no admin rights required.
 - **Why dbt over plain SQL scripts?** dbt's dependency graph (`{{ ref() }}`) automates execution order, materialization choices (view vs table), and lineage documentation — all features that would otherwise require manual orchestration code.
 - **Why a `canonicalize_team_name` macro rather than inline CASE?** DRY (Don't Repeat Yourself). The same logic now applies to `stg_matches` and `stg_tournaments` from a single source of truth. Adding more historical name mappings is a one-line change.
 
@@ -358,4 +331,4 @@ This project demonstrates:
 - ✅ **Reusable transformations** via dbt macros (DRY)
 - ✅ **Real data-quality decisions** — historical team name canonicalization, women's WC scope filter, own-goal exclusion
 - ✅ **Diverse data visualization** — 6 chart types tailored to the data they show
-- ✅ **Reproducible local development without Docker**
+- ✅ **Containerization + CI/CD** — Dockerfiles, docker-compose, and a GitHub Actions workflow that tests and publishes images on every push to `main`
