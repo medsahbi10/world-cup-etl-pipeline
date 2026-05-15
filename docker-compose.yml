@@ -1,0 +1,71 @@
+services:
+
+    postgres_db:
+        image: postgres:14
+        container_name: worldcup_postgres
+        environment:
+            POSTGRES_USER: ${DATABASE_USER}
+            POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+            POSTGRES_DB: ${DATABASE_NAME}
+        volumes:
+            - ./scripts/pg_init.sql:/docker-entrypoint-initdb.d/pg_init.sql
+        ports:
+            - "5434:5432"
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
+
+    etl_app:
+        build:
+            context: .
+            dockerfile: ./docker/etl/Dockerfile
+        container_name: worldcup_etl
+        depends_on:
+            postgres_db:
+                condition: service_healthy
+        environment:
+            DATABASE_NAME: ${DATABASE_NAME}
+            DATABASE_USER: ${DATABASE_USER}
+            DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+            DATABASE_HOST: postgres_db
+            DATABASE_PORT: 5432
+            PORT: 5432
+
+    dbt:
+        build:
+            context: .
+            dockerfile: ./docker/dbt/Dockerfile
+        container_name: worldcup_dbt
+        depends_on:
+            postgres_db:
+                condition: service_healthy
+        environment:
+            DBT_PROFILES_DIR: "/root/.dbt"
+            DATABASE_NAME: ${DATABASE_NAME}
+            DATABASE_USER: ${DATABASE_USER}
+            DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+            DATABASE_HOST: postgres_db
+            DATABASE_PORT: 5432
+
+    streamlit_app:
+        build:
+            context: .
+            dockerfile: ./docker/streamlit/Dockerfile
+        container_name: worldcup_streamlit
+        depends_on:
+            postgres_db:
+                condition: service_healthy
+        ports:
+            - "8501:8501"
+        environment:
+            DATABASE_NAME: ${DATABASE_NAME}
+            DATABASE_USER: ${DATABASE_USER}
+            DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+            DATABASE_HOST: postgres_db
+            DATABASE_PORT: 5432
+
+volumes:
+  postgres_data:
